@@ -60,7 +60,22 @@ export default {
 
       // OS mismatch test
       const actualPlatform = navigator.userAgentData?.platform || this.platform;
-      const osMatch = this.uaOS && actualPlatform && this.uaOS.toLowerCase().includes(actualPlatform.toLowerCase());
+      // Normalize OS names for comparison
+      function normalizeOS(os) {
+        if (!os) return "";
+        return os.replace(/mac\s*os|macos/i, "macos")
+                 .replace(/windows\s*10/i, "windows 10")
+                 .replace(/windows\s*8\.1/i, "windows 8.1")
+                 .replace(/windows\s*8/i, "windows 8")
+                 .replace(/windows\s*7/i, "windows 7")
+                 .replace(/linux/i, "linux")
+                 .replace(/android/i, "android")
+                 .replace(/ios/i, "ios")
+                 .toLowerCase();
+      }
+      const normUAOS = normalizeOS(this.uaOS);
+      const normPlatform = normalizeOS(actualPlatform);
+      const osMatch = normUAOS && normPlatform && normUAOS === normPlatform;
       testResults.push({
         name: "OS Consistency",
         description: `UA OS (${this.uaOS}) vs Platform (${actualPlatform})`,
