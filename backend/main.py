@@ -2,15 +2,14 @@
 Main FastAPI backend for RBI Bot Detection.
 """
 
-from typing import List
-from uuid import uuid4
-from datetime import datetime
+from typing import List, Dict, Any
 import logging
-
-from fastapi import FastAPI, Request, HTTPException
+import uuid
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
 
 # Configure logging to output to stdout for Docker
 logging.basicConfig(
@@ -31,81 +30,177 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# In-memory session store
+sessions: Dict[str, dict] = {}
 
-# Data model for a session
+
 class SessionData(BaseModel):
-    """
-    Session data
-    """
+    """Data model for a session."""
 
-    id: str = Field(
-        default_factory=lambda: str(uuid4()), description="Unique session identifier"
-    )
-    timestamp: str = Field(
-        default_factory=lambda: datetime.utcnow().isoformat(),
-        description="ISO timestamp of session",
-    )
-    environment: str = Field(..., example="RBI")
-    score: int = Field(..., ge=0, le=100, example=85)
-    issues: List[str] = Field(default_factory=list)
+    session_id: str
+    timestamp: float
+    environment: str
+    score: int
+    issues: List[str] = []
+    details: Dict[str, Any] = {}
+    headers: Dict[str, Any] = {}
+
+    def __init__(self, **data):
+        if "issues" not in data:
+            data["issues"] = []
+        if "details" not in data:
+            data["details"] = {}
+        if "headers" not in data:
+            data["headers"] = {}
+        super().__init__(**data)
 
 
-# In-memory store for sessions
-sessions: List[SessionData] = []
+class SessionSummary(BaseModel):
+    """Summary model for a session."""
+
+    id: str
+    timestamp: float
 
 
 @app.get(
-    "/api/sessions",
-    response_model=List[SessionData],
-    summary="Get all bot detection sessions",
+    "/api/headers",
+    response_class=JSONResponse,
+    summary="Get request headers",
 )
-def get_sessions():
-    """Retrieve all stored bot detection sessions."""
-    logger.info("Retrieving all sessions, count: %d", len(sessions))
-    return sessions
-
-
-@app.post("/api/sessions", status_code=201, summary="Add a full session record")
-def add_session(data: SessionData):
-    """Add a full session payload including ID and timestamp."""
-    sessions.append(data)
-    logger.info("Added session with ID %s at %s", data.id, data.timestamp)
-    return {"message": "Session added", "id": data.id}
-
-
-@app.get("/api/headers", response_class=JSONResponse, summary="Get request headers")
-def get_headers(request: Request):
+def get_headers(request: Request, session_id: str = None):
     """
-    Get all request headers as a JSON response.
+    Get all request headers as a JSON response and optionally save them for a session_id.
     """
-    logger.info("Received request for /api/headers from %s", request.client.host)
-    logger.debug("Request headers: %s", request.headers)
+    logger.info("***Received request for /api/headers from %s", request.client.host)
+    logger.debug("***Request headers: %s", request.headers)
     headers_dict = dict(request.headers)
+    # If session_id is provided, save headers for that session
+    if session_id:
+        if session_id not in sessions:
+            sessions[session_id] = {"session_id": session_id}
+        sessions[session_id]["headers"] = headers_dict
+        logger.info("***Saved headers for session %s", session_id)
     return JSONResponse(content=headers_dict)
 
 
-@app.post(
-    "/api/sessions/create",
-    status_code=201,
-    summary="Create a session from minimal input",
-)
-def create_session(payload: dict):
+@app.get("/api/session", response_model=dict)
+def get_new_session():
     """
-    Create a new session using only partial data. ID and timestamp are generated automatically.
+    Generate a new session_id and create an empty session.
     """
-    try:
-        session = SessionData(
-            environment=payload.get("environment", "Unknown"),
-            score=payload.get("score", 0),
-            issues=payload.get("issues", []),
+    session_id = str(uuid.uuid4())
+    sessions[session_id] = {"session_id": session_id}
+    logger.info("***Created new session %s", session_id)
+    return {"session_id": session_id}
+
+
+@app.post("/api/sessions", response_model=SessionSummary)
+def save_session(session: SessionData):
+    """
+    Save a session and return its summary.
+    """
+    session_id = session.session_id or str(uuid.uuid4())
+    session_dict = session.model_dump()
+    sessions[session_id] = session_dict
+    logger.info("***Saved session %s", session_id)
+    return SessionSummary(
+        id=session_id,
+        timestamp=session.timestamp,
+        environment=session.environment,
+        score=session.score,
+    )
+
+
+@app.post("/api/sessions/partial", response_model=dict)
+def save_partial_session(data: dict):
+    """
+    Save or update partial session data for a session_id.
+    """
+    session_id = data.get("session_id")
+    if not session_id:
+        logger.info("***No session_id provided, generating a new one.")
+        session_id = str(uuid.uuid4())
+    if session_id not in sessions:
+        logger.info("***Session %s not found, creating a new one.", session_id)
+        sessions[session_id] = {"session_id": session_id}
+    # Append to issues
+    if "issues" in data:
+        sessions[session_id].setdefault("issues", [])
+        for issue in data["issues"]:
+            if issue not in sessions[session_id]["issues"]:
+                sessions[session_id]["issues"].append(issue)
+    # Update details (merge dicts)
+    if "details" in data:
+        sessions[session_id].setdefault("details", {})
+        if isinstance(data["details"], dict):
+            sessions[session_id]["details"].update(data["details"])
+    # Update headers (replace)
+    if "headers" in data:
+        sessions[session_id]["headers"] = data["headers"]
+    # Set environment if present
+    if "environment" in data:
+        sessions[session_id]["environment"] = data["environment"]
+    # Set timestamp if present
+    if "timestamp" in data:
+        sessions[session_id]["timestamp"] = data["timestamp"]
+    logger.info("***Updated session %s with data: %s", session_id[:5], sessions[session_id])
+    return {"session_id": session_id}
+
+
+@app.delete("/api/sessions", response_model=dict)
+def clear_sessions():
+    """
+    Clear all sessions from memory.
+    """
+    sessions.clear()
+    logger.info("***All sessions cleared.")
+    return {"status": "cleared"}
+
+
+@app.get("/api/sessions", response_model=List[SessionSummary])
+def list_sessions():
+    """
+    Return session_id and timestamp for all sessions, latest first.
+    """
+    summaries = []
+    for sid, s in sessions.items():
+        ts = s.get("timestamp", 0)
+        summaries.append(SessionSummary(id=sid, timestamp=ts))
+    logger.info("***Listing all sessions, count: %d", len(summaries))
+    return sorted(summaries, key=lambda x: x.timestamp, reverse=True)
+
+
+@app.get("/api/sessions/{session_id}", response_model=SessionData)
+def get_session(session_id: str):
+    """
+    Get a session by its ID. If not found or missing required fields, return empty/null fields.
+    """
+    logger.info("***Fetching session data for session_id: %s", session_id)
+    s = sessions.get(session_id)
+    # Defensive: fill missing required fields with defaults
+    if not s:
+        return SessionData(
+            session_id=session_id,
+            timestamp=0,
+            environment="",
+            score=0,
+            issues=[],
+            details={},
+            headers={},
         )
-        sessions.append(session)
-        logger.info("Created session with ID %s at %s", session.id, session.timestamp)
-        return {"message": "Session created", "id": session.id}
-    except Exception as e:  # pylint-disable=broad-except
-        raise HTTPException(status_code=400, detail=f"Invalid payload: {e}") from e
+    logger.debug("***Session data found: %s", s)
+    return SessionData(
+        session_id=s.get("session_id", session_id),
+        timestamp=s.get("timestamp", 0),
+        environment=s.get("environment", ""),
+        score=s.get("score", 0),
+        issues=s.get("issues", []),
+        details=s.get("details", {}),
+        headers=s.get("headers", {}),
+    )
 
 
 # Uncomment below to run with uvicorn directly
 # if __name__ == "__main__":
+#     import uvicorn
 #     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

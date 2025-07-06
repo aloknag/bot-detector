@@ -27,7 +27,13 @@ export default {
     };
   },
   mounted() {
-    fetch("/api/headers")
+    // Use a shared session ID from localStorage or generate one
+    let sessionId = localStorage.getItem('session_id');
+    if (!sessionId) {
+      sessionId = Math.random().toString(36).slice(2) + Date.now();
+      localStorage.setItem('session_id', sessionId);
+    }
+    fetch(`/api/headers?session_id=${sessionId}`)
       .then((res) => res.json())
       .then((data) => {
         this.headers = data;

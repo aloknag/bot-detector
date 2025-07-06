@@ -85,10 +85,7 @@ export default {
     };
   },
   mounted() {
-    window.addEventListener("keydown", this.handleKey);
-    window.addEventListener("mousemove", this.handleMouse);
-    window.addEventListener("touchstart", this.handleTouch);
-    setTimeout(this.evaluateUserActivity, 5000);
+    this.runTests();
   },
   beforeDestroy() {
     window.removeEventListener("keydown", this.handleKey);
@@ -136,6 +133,37 @@ export default {
         issues,
         scoreImpact,
       });
+    },
+    runTests() {
+      window.addEventListener("keydown", this.handleKey);
+      window.addEventListener("mousemove", this.handleMouse);
+      window.addEventListener("touchstart", this.handleTouch);
+      setTimeout(() => {
+        this.evaluateUserActivity();
+
+        // After test logic, send partial result to backend
+        let sessionId = localStorage.getItem('session_id');
+        if (!sessionId) {
+          sessionId = Math.random().toString(36).slice(2) + Date.now();
+          localStorage.setItem('session_id', sessionId);
+        }
+        const payload = {
+          session_id: sessionId,
+          test: 'UserActivityTest',
+          issues: this.issues,
+          details: {
+            keystrokes: this.keystrokes,
+            mouseMoves: this.mouseMoves,
+            touches: this.touches,
+          },
+          timestamp: Date.now(),
+        };
+        fetch('/api/sessions/partial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => {});
+      }, 5000);
     },
   },
 };

@@ -48,14 +48,7 @@ export default {
         };
     },
     mounted() {
-        const resumeAudioContext = () => {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            context.resume().then(() => {
-                this.runTests();
-            });
-        };
-        // this.runTests();
-        window.addEventListener("click", resumeAudioContext, { once: true });
+        this.runTests();
     },
     methods: {
         confidenceClass(level) {
@@ -134,6 +127,29 @@ export default {
                 issues,
                 scoreImpact,
             });
+
+            // After test logic, send partial result to backend
+            let sessionId = localStorage.getItem('session_id');
+            if (!sessionId) {
+                sessionId = Math.random().toString(36).slice(2) + Date.now();
+                localStorage.setItem('session_id', sessionId);
+            }
+            const payload = {
+                session_id: sessionId,
+                test: 'AudioPerformanceTest',
+                issues: this.issues,
+                details: { testResults: this.testResults }, // wrap array in object
+                timestamp: Date.now(),
+            };
+            try {
+                await fetch('/api/sessions/partial', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+            } catch (e) {
+                // ignore
+            }
         },
 
         getAudioContextEntropy() {
