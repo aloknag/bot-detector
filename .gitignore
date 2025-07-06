@@ -1,0 +1,70 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Python virtual environments
+venv/
+env/
+.venv/
+.env/
+# Inside backend
+backend/venv/
+backend/env/
+backend/.venv/
+# Ignore Python cache files
+backend/__pycache__/
+# Ignore Python bytecode files
+backend/*.py[cod]
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs and local files
+*.log
+*.sqlite3
+*.db
+*.pid
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.vscode/
+frontend/.vscode
+backend/__pycache__
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Node modules and frontend build
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/coverage/
+frontend/*.local
+
+# Cypress output
+frontend/cypress/videos/
+frontend/cypress/screenshots/
+
+# Misc
+*.tsbuildinfo
+
+# Ignore dotenv files (if any)
+.env.*
+!.env.example
+
+# Supervisor logs (if configured)
+supervisord.log
+
+# Nginx logs (if mapped locally)
+nginx/logs/
