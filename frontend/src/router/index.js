@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import CreepjsView from '@/views/CreepjsView.vue'
+import SessionDetail from '@/components/SessionDetail.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -14,6 +15,12 @@ const router = createRouter({
       path: '/creepjs',
       name: 'creepjs',
       component: CreepjsView,
+    },
+    {
+      path: '/session/:id',
+      name: 'session-detail',
+      component: SessionDetail,
+      props: true,
     },
     // {
     //   path: '/about',

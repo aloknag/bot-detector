@@ -144,6 +144,25 @@ export default {
         issues,
         scoreImpact,
       });
+
+      // After test logic, send partial result to backend
+      let sessionId = localStorage.getItem('session_id');
+      if (!sessionId) {
+        sessionId = Math.random().toString(36).slice(2) + Date.now();
+        localStorage.setItem('session_id', sessionId);
+      }
+      const payload = {
+        session_id: sessionId,
+        test: 'FingerprintTest',
+        issues: this.issues,
+        details: this.testResults,
+        timestamp: Date.now(),
+      };
+      fetch('/api/sessions/partial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
     } catch (e) {
       this.issues = ["Fingerprinting error: " + e.message];
       this.testResults = [];

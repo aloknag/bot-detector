@@ -127,6 +127,28 @@ export default {
       score,
       issues
     });
+
+    // After test logic, send partial result to backend
+    let sessionId = localStorage.getItem('session_id');
+    if (!sessionId) {
+      sessionId = Math.random().toString(36).slice(2) + Date.now();
+      localStorage.setItem('session_id', sessionId);
+    }
+    // Compose a readable environment string
+    const environment = `${platform} / ${ua}`;
+    const payload = {
+      session_id: sessionId,
+      test: 'EnvironmentTest',
+      environment, // set environment string
+      issues: this.issues,
+      details: this.results,
+      timestamp: Date.now(),
+    };
+    fetch('/api/sessions/partial', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
   }
 };
 </script>

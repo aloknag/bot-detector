@@ -40,24 +40,41 @@ export default {
     }
   },
   mounted() {
-    this.runFingerprint()
+    this.runFingerprint();
   },
   methods: {
     async runFingerprint() {
       try {
-        const result = await fingerprint()
-        this.results = result
-        this.loading = false
-
+        const result = await fingerprint();
+        this.results = result;
+        this.loading = false;
         // Optional: emit score or issues
         this.$emit('result', {
           source: 'CreepJSTest',
           issues: [], // You can evaluate `result` to add issues if needed
           scoreImpact: 0,
-        })
+        });
+        // After test logic, send partial result to backend
+        let sessionId = localStorage.getItem('session_id');
+        if (!sessionId) {
+          sessionId = Math.random().toString(36).slice(2) + Date.now();
+          localStorage.setItem('session_id', sessionId);
+        }
+        const payload = {
+          session_id: sessionId,
+          test: 'CreepJSTest',
+          issues: [],
+          details: result,
+          timestamp: Date.now(),
+        };
+        fetch('/api/sessions/partial', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => {});
       } catch (error) {
-        this.results = { error: error.message }
-        this.loading = false
+        this.results = { error: error.message };
+        this.loading = false;
       }
     },
   },

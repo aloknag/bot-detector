@@ -19,16 +19,18 @@
         <div
           v-for="session in sessions"
           :key="session.id"
-          class="bg-white shadow rounded-lg p-4 border"
+          class="bg-white shadow rounded-lg p-4 border cursor-pointer hover:bg-gray-50"
+          @click="goToSession(session.id)"
         >
+          <router-link
+            :to="{ name: 'session-detail', params: { id: session.id } }"
+            class="block text-blue-600 hover:underline mb-1"
+            @click.stop
+          >
+            View Session #{{ session.id.slice(0, 8) }}
+          </router-link>
           <p class="text-sm text-gray-600">Time: {{ formatTime(session.timestamp) }}</p>
-          <p class="text-sm text-gray-600">Env: {{ session.environment }}</p>
-          <p class="text-sm font-semibold" :class="scoreColor(session.score)">
-            Score: {{ session.score }}/100
-          </p>
-          <ul class="mt-2 list-disc list-inside text-sm text-gray-700">
-            <li v-for="(issue, i) in session.issues" :key="i">{{ issue }}</li>
-          </ul>
+          <p class="text-sm text-gray-600 truncate" title="Environment">{{ session.environment || 'No Data' }}</p>
         </div>
       </div>
     </section>
@@ -46,13 +48,30 @@ export default {
   data() {
     return {
       sessions: [],
-      loading: true
+      loading: true,
+      sessionId: null,
     };
   },
   mounted() {
-    this.fetchSessions();
+    this.initSession();
   },
+
   methods: {
+    async initSession() {
+      // Request a new session_id from backend
+      try {
+        console.log("Fetching session ID from backend...");
+        const res = await fetch('/api/session');
+        const data = await res.json();
+        this.sessionId = data.session_id;
+        localStorage.setItem('session_id', this.sessionId);
+        console.log("Session ID set:", this.sessionId);
+      } catch (e) {
+        console.error("Failed to fetch session ID:", e);
+        this.sessionId = null;
+      }
+      this.fetchSessions();
+    },
     async fetchSessions() {
       try {
         const response = await fetch("/api/sessions");
