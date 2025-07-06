@@ -1,10 +1,24 @@
-from fastapi import FastAPI, Request, HTTPException
-from pydantic import BaseModel, Field
+"""
+Main FastAPI backend for RBI Bot Detection.
+"""
+
 from typing import List
 from uuid import uuid4
 from datetime import datetime
+import logging
+
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+
+# Configure logging to output to stdout for Docker
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+# Use Uvicorn's logger to ensure logs appear in container logs
+logger = logging.getLogger("uvicorn")
 
 app = FastAPI(title="RBI Bot Detection Backend", version="1.0.0")
 
@@ -47,6 +61,7 @@ sessions: List[SessionData] = []
 )
 def get_sessions():
     """Retrieve all stored bot detection sessions."""
+    logger.info("Retrieving all sessions, count: %d", len(sessions))
     return sessions
 
 
@@ -54,7 +69,19 @@ def get_sessions():
 def add_session(data: SessionData):
     """Add a full session payload including ID and timestamp."""
     sessions.append(data)
+    logger.info("Added session with ID %s at %s", data.id, data.timestamp)
     return {"message": "Session added", "id": data.id}
+
+
+@app.get("/api/headers", response_class=JSONResponse, summary="Get request headers")
+def get_headers(request: Request):
+    """
+    Get all request headers as a JSON response.
+    """
+    logger.info("Received request for /api/headers from %s", request.client.host)
+    logger.debug("Request headers: %s", request.headers)
+    headers_dict = dict(request.headers)
+    return JSONResponse(content=headers_dict)
 
 
 @app.post(
@@ -73,6 +100,7 @@ def create_session(payload: dict):
             issues=payload.get("issues", []),
         )
         sessions.append(session)
+        logger.info("Created session with ID %s at %s", session.id, session.timestamp)
         return {"message": "Session created", "id": session.id}
     except Exception as e:  # pylint-disable=broad-except
         raise HTTPException(status_code=400, detail=f"Invalid payload: {e}") from e
